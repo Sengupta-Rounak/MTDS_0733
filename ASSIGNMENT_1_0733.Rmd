@@ -1,0 +1,114 @@
+---
+title: "ASSIGNMENT_1_0733"
+author: "ROUNAK SENGUPTA"
+date: "2026-01-19"
+output: pdf_document
+---
+#                         PREDICTIVE ANALYTICS
+##                            Problem Set 1
+
+```{r}
+library(MASS)
+data(Boston)
+```
+
+**1. Report the “class” of the data set. How many rows and columns are in
+this data set? What do the rows and columns represent?**
+
+```{r}
+class(Boston)
+dim(Boston)
+```
+
+Each row represents a suburb of Boston.
+
+Each column represents a variable describing housing, demographic, environmental, or socio-economic characteristics of the suburb.
+
+**2. Create a smaller data set with the variables median value of owner-occupied
+homes, per capita crime rate, nitrogen oxides concentration, proportion of
+blacks and percentage of lower status of the population. Choosing median
+value of owner occupied homes as the response and the rest as the pre-
+dictors, make scatter plots of the response versus each predictor. Present
+the scatter plots in different panels of the same graph. Comment on your
+findings.**
+
+```{r}
+boston_small <- Boston[, c("medv", "crim", "nox", "black", "lstat")]
+head(boston_small)
+```
+***Scatter Plot***
+```{r}
+par(mfrow = c(2,2))
+plot(boston_small$crim, boston_small$medv, xlab="Crime Rate", ylab="Median Value", main="MEDV vs CRIM")
+plot(boston_small$nox, boston_small$medv, xlab="NOX", ylab="Median Value", main="MEDV vs NOX")
+plot(boston_small$black, boston_small$medv, xlab="Black", ylab="Median Value", main="MEDV vs BLACK")
+plot(boston_small$lstat, boston_small$medv, xlab="LSTAT", ylab="Median Value", main="MEDV vs LSTAT")
+```
+***Findings***
+
+1. Median house value decreases as crime rate increases.
+
+2. A strong negative relationship exists between medv and lstat.
+
+**3. Which suburb of Boston has lowest median value of owner-occupied homes?
+What are the values of the other predictors mentioned in (2), for that
+suburb. How do these values compare to the overall ranges for those pre-
+dictors? Comment on your findings. Hint: Mention which percentile these
+values belong to.**
+
+```{r}
+min_medv_index <- which.min(Boston$medv)
+Boston[min_medv_index, c("medv", "crim", "nox", "black", "lstat")]
+```
+
+```{r}
+# Percentiles of predictors for that suburb
+suburb_values <- Boston[min_medv_index, c("crim", "nox", "black", "lstat")]
+percentiles <- sapply(
+  c("crim", "nox", "black", "lstat"),
+  function(var) ecdf(Boston[[var]])(suburb_values[[var]])
+)
+
+percentiles
+
+
+```
+***Comments***
+
+The suburb with the lowest median house value lies in the upper percentiles of crime rate and lower-status population.
+
+
+Pollution levels are also relatively high.
+
+These characteristics explain the very low housing prices in this suburb.
+
+**4. Does any suburb of Boston stand out for having notably high crime rates,
+tax rates, or pupil–teacher ratios? Hint: Use a boxplot to detect any
+outliers. If so, identify the suburbs that show the outlier values.**
+
+```{r}
+par(mfrow = c(1, 3))
+
+boxplot(Boston$crim, main = "Crime Rate", ylab = "CRIM")
+boxplot(Boston$tax, main = "Tax Rate", ylab = "TAX")
+boxplot(Boston$ptratio, main = "Pupil–Teacher Ratio", ylab = "PTRATIO")
+
+```
+
+```{r}
+# Identify suburbs with outliers
+out_crim <- which(Boston$crim %in% boxplot.stats(Boston$crim)$out)
+out_tax <- which(Boston$tax %in% boxplot.stats(Boston$tax)$out)
+out_ptratio <- which(Boston$ptratio %in% boxplot.stats(Boston$ptratio)$out)
+
+out_crim
+out_tax
+out_ptratio
+
+```
+***Comments***
+A few suburbs exhibit extremely high crime rates.
+
+Some suburbs also show unusually high tax rates and pupil–teacher ratios.
+
+These outliers may strongly influence predictive models and should be handled carefully.
