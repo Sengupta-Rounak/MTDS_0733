@@ -1,0 +1,222 @@
+---
+title: "Predictive_Practical3_0733"
+author: "ROUNAK SENGUPTA"
+date: "2026-02-11"
+output: word_document
+---
+
+# Problem Set 3: Multiple Linear Regression
+
+# 2 Problem to demonstrate the role of qualita-tive (nominal) predictors in addition to quantitative predictors in multiple linear regression
+
+## Attach “Credits” data from R. Regress “balance” on
+
+```{r}
+library(ISLR)
+data(Credit)
+```
+
+## (a) “gender” only.
+
+```{r}
+model1 <- lm(Balance ~ Gender, data=Credit)
+model1
+```
+
+### Model:
+
+### balancei = β0+β1Genderi+εi
+
+### (Assume Male = reference category)
+
+### Interpretation of coefficients (typical result from Credits data):
+
+### * Intercept → Average balance for males
+
+### * GenderFemale → Difference between female and male average balance
+
+### Result (typical output):
+
+### * Intercept ≈ 509
+
+### * Female ≈ +19 (not statistically significant)
+
+### Interpretation
+
+### There is no statistically significant difference in average balance between males and females.
+
+## (b) “gender” and “ethnicity”
+
+```{r}
+model2 <- lm(Balance ~ Gender + Ethnicity, data=Credit)
+model2
+```
+
+### Ethnicity reference category: Caucasian
+
+### Model:
+
+### balancei = β0+β1Genderi+β2Ethnicityi+εi
+
+### Typical findings:
+
+### * Gender: not significant
+
+### * Ethnicity: not significant
+
+### Interpretation
+
+### After adding ethnicity, none of the categorical variables significantly explain balance.
+
+## (c) “gender”, “ethnicity”, “income”.
+
+```{r}
+model3 <- lm(Balance ~ Gender + Ethnicity + Income, data=Credit)
+model3
+```
+
+### Model:
+
+### balancei = β0+β1Genderi+β2Ethnicityi+β3Incomei+εi
+
+### Typical results from Credits data:
+
+### * Income → Highly significant
+
+### * Gender → Not significant
+
+### * Ethnicity → Not significant
+
+### Income has a strong positive effect on balance.
+
+## (d) Output all the regressions in (a)-(c) in a single table using stargazer. Comment on the significant coefficients in each of the models.
+
+```{r}
+library(stargazer)
+stargazer(model1, model2, model3,
+          type="text",
+          title="Regression Results",
+          dep.var.labels="Balance")
+```
+
+## (e) Explain how gender affects “balance” in each of the models (a)- (c) .
+
+###Model (a): Gender difference ≈ small and insignificant.
+
+###Model (b): Still insignificant after controlling for ethnicity.
+
+###Model (c): Still insignificant even after controlling for income.
+
+## (f) Compare the average credit card balance of a male African with a male Caucasian on the basis of model (b).
+
+### Using model(b);
+
+### Since both are males:
+
+### * Male Caucasian → baseline = β₀
+
+### * Male African → β₀ + β₂
+
+### Difference=β2
+
+### Since β₂ is small and not significant → No meaningful difference.
+
+## (g) Compare the average credit card balance of a male African with a male Caucasian when each earns 100,000 dollars. For comparison, use the model in (c).
+ 
+### Using model (c);
+
+### For both individuals, income = 100,000.
+
+### Difference:(β0+β2+β3(100000))−(β0+β3(100000))=β2
+
+## (h) Compare and comment on the answers in (f) and (g)
+
+### Income is held constant in (g), so the difference still depends only on ethnicity coefficient.Since ethnicity coefficient is insignificant there is no practical difference.
+
+## (i) Based on the model in (c), predict the credit card balance of a female Asian whose income is 2000,000 dollars.
+
+### Using model (c):
+
+### balance^=β0+β1(Female)+β2(Asian)+β3(2,000,000)
+
+### Because income coefficient is positive and significant:
+
+### Prediction will be very large, dominated by income term.
+
+# 4 Problem to demonstrate the impact of ignoring interaction term in multiple linear regression
+
+## Consider a simulation setting where the data is generated as follows:
+## Step 1: Generate x1i from Normal(0,1) distribution, i = 1, 2, .., n
+## Step 2: Generate x2i from Bernoulli (0.3) distribution, i = 1, 2, .., n
+## Step 3: Generate εi from Normal(0,1) and hence generate the response yi = β0 + β1x1i + β2x2i + β3(x1i × x2i) + εi, i = 1, 2, , , n.
+## Step 4: Run two separate multiple linear regressions (i) using the model in Step 3 and (ii) using the model in Step 3 without the interaction term.
+## Repeat Steps 1-4 , R = 1000 times. At each simulation compute the MSE for the correct model (i.e. model with the interaction term) and the naive model (i.e. the model without the interaction term). Finally find the average MSE’s for each model. From the output, demonstrate the impact of ignoring the interaction term.
+## Carry out the analysis for n = 100 and the following parametric configurations:
+## (β0, β1, β2, β3) = (−2.5, 1.2, 2.3, 0.001) , (-2.5, 1.2. 2.3, 3.1). Set seed as 123.
+
+```{r}
+set.seed(123)
+
+n <- 100
+R <- 1000
+p <- 0.3
+
+run_sim <- function(beta3_value){
+
+  b0 <- -2.5
+  b1 <- 1.2
+  b2 <- 2.3
+  b3 <- beta3_value
+  
+  mse_correct <- numeric(R)
+  mse_naive   <- numeric(R)
+  
+  for(i in 1:R){
+    
+    # Generate data
+    x1 <- rnorm(n, 0, 1)
+    x2 <- rbinom(n, 1, p)
+    eps <- rnorm(n, 0, 1)
+    
+    y <- b0 + b1*x1 + b2*x2 + b3*(x1*x2) + eps
+    
+    data <- data.frame(y, x1, x2)
+    
+    # Correct model (with interaction)
+    fit1 <- lm(y ~ x1*x2, data=data)
+    
+    # Naive model (without interaction)
+    fit2 <- lm(y ~ x1 + x2, data=data)
+    
+    # Compute training MSE
+    mse_correct[i] <- mean((y - predict(fit1))^2)
+    mse_naive[i]   <- mean((y - predict(fit2))^2)
+  }
+  
+  cat("\nBeta3 =", beta3_value, "\n")
+  cat("Average MSE (Correct Model):", mean(mse_correct), "\n")
+  cat("Average MSE (Naive Model):", mean(mse_naive), "\n")
+}
+
+# Case 1: Very small interaction
+run_sim(0.001)
+
+# Case 2: Large interaction
+run_sim(3.1)
+
+```
+
+### Case 1: 
+### β3 = 0.001 (interaction is almost zero)
+
+### * The two models should have very similar average MSE.
+
+### * Ignoring the interaction term doesn’t hurt much because the true interaction effect is negligible.
+
+### Case 2: 
+### β3 = 3.1 (strong interaction)
+
+### * The naive model’s average MSE will be much larger than the correct model’s.
+
+### * This demonstrates the key point: omitting an important interaction term increases prediction error (model misspecification).
+
