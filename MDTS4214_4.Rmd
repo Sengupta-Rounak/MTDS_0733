@@ -1,0 +1,288 @@
+---
+title: "ASSIGNMENT_4_MDTS4214_0733"
+author: "ROUNAK SENGUPTA"
+date: "2026-02-19"
+output: pdf_document
+---
+#### 5.Problem to demonstrate the utility of non- regression over linear regression.
+
+##### Get the fgl data set from “MASS” library.
+##### (a) Considering the refractive index (RI) of “Vehicle Window glass” as the variable of interest and assuming linearity of regression, run multiple linear regression of RI on different metallic oxides. From the p value, report which metallic oxide best explains the refractive index. 
+
+```{r}
+library(MASS)
+data(fgl)
+str(fgl)
+table(fgl$type)
+head(fgl)
+```
+
+```{r}
+#install.packages("stargazer")
+library(stargazer)
+
+veh=subset(fgl,type=="Veh")
+
+predictors=c("Na","Mg","Al","Si","K","Ca","Ba","Fe")
+
+summary(veh$RI)
+summary(veh[, predictors])
+
+```
+
+```{r}
+model1=lm(RI ~ Na + Mg + Al + Si + K + Ca + Ba + Fe, data = veh)
+summary(model1)
+
+pvals=summary(model1)$coefficients[-1, 4]
+pvals=sort(pvals)
+
+pvals  
+
+best_pred=names(pvals)[1]
+best_pred
+
+```
+
+#### Conclusion :
+
+##### The metallic oxide with the smallest p-value is:
+#### Fe :Iron
+
+##### It best explains RI under linear regression assumption.
+
+#### (b) Run a simple linear regression of RI on the best predictor chosen in (a).
+
+```{r}
+form_simple=as.formula(paste("RI ~", best_pred))
+
+fit_simple=lm(form_simple, data = veh)
+summary(fit_simple)
+
+summary(fit_simple)$r.squared
+
+```
+
+##### Conclusion:
+#### RI= -0.5007 + 8.1362 * Fe
+
+###### intercept (β₀) = −0.5007
+###### Fe (β₁) = 8.1362 ; p-value = 0.06452
+
+##### This indicates that for every one-unit increase in Fe content, the refractive index (RI) increases on average by 8.1362 units.
+
+##### The model explains 20.97% of the variability in refractive index.
+
+###### The predictor Fe has a p-value of 0.0645, which is:
+
+###### 1. Not significant at the 5% level
+
+###### 2. Marginally significant at the 10% level
+
+
+##### (c) Can you further improve the regression of the refractive index of “Vehicle Window glass” on the predictor chosen by you in part (a)? Give the new fitted model and compare its performance with the model in (b).
+
+```{r}
+simple_model = lm(RI ~ Fe, data = veh)
+
+summary(simple_model)
+
+r2_simple = summary(simple_model)$r.squared
+adjr2_simple = summary(simple_model)$adj.r.squared
+
+```
+```{r}
+model_quad = lm(RI ~ Fe + I(Fe^2), data = veh)
+
+summary(model_quad)
+
+r2_quad = summary(model_quad)$r.squared
+adjr2_quad = summary(model_quad)$adj.r.squared
+
+r2_simple
+r2_quad
+
+adjr2_simple
+adjr2_quad
+```
+##### The quadratic model improves the regression if:
+
+##### R² (quadratic) > R² (simple)
+
+##### Adjusted R² increases
+
+##### The quadratic term is marginally significant at 10% level (p = 0.097), suggesting that nonlinear regression provides a slight improvement over the simple linear model,though the improvement is not strong at the 5% significance level.
+
+## Problem Set 4: Some Potential
+## Problems in Multiple Linear Regression
+
+### 1. Problem to demonstrate multicollinearity
+
+#### Consider the Credit data in the ISLR library. Choose balance as the responseand Age, Limit and Rating as the predictors.
+#### (a) Make a scatter plot of (i) Age versus Limit and (ii) Rating Versus Limit.
+#### Comment on the scatter plot
+
+```{r}
+library(ISLR)
+library(car)
+
+data(Credit)
+
+plot(Credit$Age, Credit$Limit,
+     xlab = "Age",
+     ylab = "Credit Limit",
+     main = "Age vs Credit Limit",
+     pch = 19,
+     col = "blue")
+```
+```{r}
+plot(Credit$Rating, Credit$Limit,
+     xlab = "Credit Rating",
+     ylab = "Credit Limit",
+     main = "Rating vs Credit Limit",
+     pch = 19,
+     col = "red")
+
+```
+
+Conclusion:
+i. Age vs Limit: 
+Direction: Slight positive relationship (as Age increases, Limit tends to increase slightly).
+
+Strength: Weak.
+
+Type: Approximately linear, but very scattered.
+
+The scatter plot of Age versus Limit shows a wide spread of points with no strong visible pattern. There may be a slight upward trend, but the relationship is weak and not very pronounced. This suggests that Age is not strongly associated with Credit Limit.
+
+ii. Rating vs Limit:
+Direction: Strong positive relationship.
+
+Strength: Very strong.
+
+Type: Linear.
+
+The scatter plot of Rating versus Limit shows points clustered tightly around an upward-sloping straight line. This indicates a very strong positive linear relationship. As Credit Rating increases, Credit Limit increases almost proportionally.
+
+#### (b) Run three separate regressions: (i) Balance on Age and Limit (ii) Balance on Age, Rating and Limit (iii) Balance on Rating and Limit. Present all the regression output in a single table using stargazer. What is the marked difference that you can observe from the output?
+
+```{r}
+reg1 <- lm(Balance ~ Age + Limit, data = Credit)
+reg2 <- lm(Balance ~ Age + Rating + Limit, data = Credit)
+reg3 <- lm(Balance ~ Rating + Limit, data = Credit)
+```
+
+
+```{r}
+stargazer(reg1, reg2, reg3,
+          type = "text",
+          title = "Regression Results Demonstrating Multicollinearity",column.labels = c("Age + Limit", "Age + Rating + Limit", "Rating + Limit"),
+          digits = 3)
+
+```
+
+#### Coefficient changes for Limit:
+
+##### In Reg 1, Limit has 0.173* (highly significant).
+
+##### In Reg 2, after adding Rating, Limit drops to 0.019 and becomes insignificant.
+
+##### In Reg 3, Limit is also small (0.025) and insignificant.
+
+##### Standard errors for Limit increase dramatically in Regression 2 compared to Regression 1.
+
+##### This is a hallmark of multicollinearity: predictor coefficients become unstable, and p-values increase.
+
+#### (c) Calculate the variance inflation factor (VIF) and comment on multicollinearity .
+
+```{r}
+vif(reg1)
+vif(reg2)
+vif(reg3)
+```
+
+Model 2: Balance ~ Age + Rating + Limit
+
+VIF for Rating ≈ 160
+
+VIF for Limit ≈ 160
+
+Interpretation:
+
+Extremely high VIF values indicate severe multicollinearity between Rating and Limit.
+
+The coefficients of Rating and Limit are unstable, standard errors inflate, and significance may be misleading (as seen in the Stargazer table).
+
+### 2. Problem to demonstrate the detection of outlier, leverage and influential points
+
+#### Attach “Boston” data from MASS library in R. Select median value of owner occupied homes, as the response and per capita crime rate, nitrogen oxides concentration, proportion of blacks and percentage of lower status of the population as predictors. The objective is to fit a multiple linear regression model of the response on the predictors. With reference to this problem, detect outliers, leverage points and influential points if any.
+
+```{r}
+library(MASS)
+data(Boston)
+
+model_boston <- lm(medv ~ crim + nox + black + lstat, data = Boston)
+
+summary(model_boston)
+```
+
+```{r}
+plot(model_boston$fitted.values, resid(model_boston),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residual Plot",
+     pch = 19, col = "blue")
+
+abline(h = 0, col = "red", lwd = 2)
+
+```
+
+```{r}
+std_res <- rstandard(model_boston)
+plot(model_boston$fitted.values, std_res,
+     xlab = "Fitted Values",
+     ylab = "Standardized Residuals",
+     main = "Standardized Residual Plot",
+     pch = 19, col = "darkgreen")
+
+abline(h = c(-2, 2), col = "red", lty = 2)
+abline(h = c(-3, 3), col = "blue", lty = 2)
+
+```
+
+```{r}
+which(abs(std_res) > 2)  # Observations that may be outliers
+
+```
+
+#### Detect Leverage points 
+
+```{r}
+hii = hatvalues(model_boston)
+
+plot(hii,
+     ylab = "Leverage (hii)",
+     main = "Leverage Plot",
+     pch = 19)
+
+n = nrow(Boston)
+p = length(coef(model_boston)) - 1
+cutoff = 2 * (p + 1) / n
+abline(h = cutoff, col = "red", lwd = 2)
+
+which(hii > cutoff)
+
+```
+
+```{r}
+cooksd = cooks.distance(model_boston)
+
+plot(cooksd,
+     ylab = "Cook's Distance",
+     main = "Cook's Distance Plot",
+     pch = 19, col = "purple")
+
+abline(h = 4/(n - p - 1), col = "red", lty = 2)
+
+which(cooksd > 4/(n - p - 1))
+```
