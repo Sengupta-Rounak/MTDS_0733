@@ -1,0 +1,295 @@
+---
+title: "ASSIGNMENT_8_0733_MDTS4214"
+author: "ROUNAK SENGUPTA"
+date: "2026-03-30"
+output: word_document
+---
+
+# Problem: Logistic Regression with Binary Response
+
+We use the `Weekly` data from the `ISLR` package to demonstrate logistic regression for a binary response variable.
+
+## (a) Train-test split
+
+We use observations from **1990 to 2008** as the training data and observations from **2009 to 2010** as the test data.
+
+```{r}
+library(ISLR)
+data("Weekly")
+
+train_data <- subset(Weekly, Year >= 1990 & Year <= 2008)
+test_data  <- subset(Weekly, Year >= 2009 & Year <= 2010)
+
+dim(train_data)
+dim(test_data)
+```
+
+The response variable is `Direction`, and the predictors are `Lag1`, `Lag2`, `Lag3`, `Lag4`, `Lag5`, and `Volume`.
+
+# (b) Logistic regression with five lag variables and Volume
+
+We now fit a logistic regression model on the training data.
+
+```{r}
+glm_full <- glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume,
+                data = train_data,
+                family = binomial)
+
+summary(glm_full)
+```
+
+## Significance of predictors
+
+The p-values of the predictors are:
+
+```{r}
+full_summary <- summary(glm_full)
+coef_table <- full_summary$coefficients
+coef_table
+```
+
+We now identify whether any predictor is significant at the 5% level.
+
+```{r}
+pvals <- coef_table[-1, 4]   # exclude intercept
+significant_predictors <- names(pvals[pvals < 0.05])
+significant_predictors
+```
+
+If no predictor is significant at the 5% level, then we find the predictor with the smallest p-value.
+
+```{r}
+least_p_name <- names(which.min(pvals))
+least_p_value <- min(pvals)
+
+least_p_name
+least_p_value
+```
+
+## Interpretation of the coefficient with the least p-value
+
+The corresponding coefficient is:
+
+```{r}
+least_p_coef <- coef(glm_full)[least_p_name]
+least_p_coef
+```
+
+Its odds ratio is:
+
+```{r}
+exp(least_p_coef)
+```
+
+### Interpretation
+
+For a one-unit increase in `r least_p_name`, keeping all other predictors fixed, the **log-odds** of the market going **Up** changes by `r round(least_p_coef, 4)`.
+
+Equivalently, the **odds** are multiplied by `r round(exp(least_p_coef), 4)`.
+
+- If this value is greater than 1, the odds of market going **Up** increase.
+- If this value is less than 1, the odds of market going **Up** decrease.
+
+# (c) Odds of market going "Up" at median predictor values
+
+We compute the median of each predictor using the training data.
+
+```{r}
+med_vals <- data.frame(
+  Lag1 = median(train_data$Lag1),
+  Lag2 = median(train_data$Lag2),
+  Lag3 = median(train_data$Lag3),
+  Lag4 = median(train_data$Lag4),
+  Lag5 = median(train_data$Lag5),
+  Volume = median(train_data$Volume)
+)
+
+med_vals
+```
+
+Now we estimate the probability of the market going **Up** at these median predictor values.
+
+```{r}
+p_up_median <- predict(glm_full, newdata = med_vals, type = "response")
+p_up_median
+```
+
+The estimated **odds** are:
+
+```{r}
+odds_up_median <- p_up_median / (1 - p_up_median)
+odds_up_median
+```
+
+Thus, at the median values of the predictors, the estimated odds that the market goes **Up** are `r round(odds_up_median, 4)`.
+
+# (e) Optimal cut-point on the test data
+
+We now use the fitted model to obtain predicted probabilities for the test data.
+
+```{r}
+test_prob_full <- predict(glm_full, newdata = test_data, type = "response")
+head(test_prob_full)
+```
+
+We define a function to compute:
+
+- True Positive Rate (TPR)
+- False Positive Rate (FPR)
+- Objective: `TPR * (1 - FPR)`
+
+for a given cut-point.
+
+```{r}
+evaluate_cutpoint <- function(actual, prob, cutoff) {
+  pred <- ifelse(prob > cutoff, "Up", "Down")
+  pred <- factor(pred, levels = c("Down", "Up"))
+  actual <- factor(actual, levels = c("Down", "Up"))
+
+  cm <- table(Predicted = pred, Actual = actual)
+
+  # make sure all cells exist
+  if (!("Down" %in% rownames(cm))) {
+    cm <- rbind(cm, Down = c(0, 0))
+  }
+  if (!("Up" %in% rownames(cm))) {
+    cm <- rbind(cm, Up = c(0, 0))
+  }
+  if (!("Down" %in% colnames(cm))) {
+    cm <- cbind(cm, Down = c(0, 0))
+  }
+  if (!("Up" %in% colnames(cm))) {
+    cm <- cbind(cm, Up = c(0, 0))
+  }
+
+  cm <- cm[c("Down", "Up"), c("Down", "Up")]
+
+  TN <- cm["Down", "Down"]
+  FN <- cm["Down", "Up"]
+  FP <- cm["Up", "Down"]
+  TP <- cm["Up", "Up"]
+
+  TPR <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+  FPR <- ifelse((FP + TN) == 0, 0, FP / (FP + TN))
+  objective <- TPR * (1 - FPR)
+  error_rate <- (FP + FN) / sum(cm)
+
+  list(
+    cutoff = cutoff,
+    confusion_matrix = cm,
+    TPR = TPR,
+    FPR = FPR,
+    objective = objective,
+    error_rate = error_rate
+  )
+}
+```
+
+Now we search over possible cut-points.
+
+```{r}
+cut_grid <- sort(unique(test_prob_full))
+results_full <- lapply(cut_grid, function(cut) {
+  evaluate_cutpoint(test_data$Direction, test_prob_full, cut)
+})
+
+objective_values_full <- sapply(results_full, function(x) x$objective)
+best_index_full <- which.max(objective_values_full)
+best_result_full <- results_full[[best_index_full]]
+
+best_result_full$cutoff
+best_result_full$TPR
+best_result_full$FPR
+best_result_full$objective
+```
+
+## Confusion matrix for the optimal cut-point
+
+```{r}
+best_result_full$confusion_matrix
+```
+
+## Test error rate
+
+```{r}
+best_result_full$error_rate
+```
+
+So, using the optimal cut-point, the test error rate is `r round(best_result_full$error_rate, 4)`.
+
+# (f) Logistic regression using only Lag1 and Lag2
+
+Now we fit another model using only `Lag1` and `Lag2`.
+
+```{r}
+glm_lag12 <- glm(Direction ~ Lag1 + Lag2,
+                 data = train_data,
+                 family = binomial)
+
+summary(glm_lag12)
+```
+
+We obtain predicted probabilities for the test data.
+
+```{r}
+test_prob_lag12 <- predict(glm_lag12, newdata = test_data, type = "response")
+head(test_prob_lag12)
+```
+
+Again, we find the optimal cut-point by maximizing `TPR * (1 - FPR)`.
+
+```{r}
+cut_grid_lag12 <- sort(unique(test_prob_lag12))
+results_lag12 <- lapply(cut_grid_lag12, function(cut) {
+  evaluate_cutpoint(test_data$Direction, test_prob_lag12, cut)
+})
+
+objective_values_lag12 <- sapply(results_lag12, function(x) x$objective)
+best_index_lag12 <- which.max(objective_values_lag12)
+best_result_lag12 <- results_lag12[[best_index_lag12]]
+
+best_result_lag12$cutoff
+best_result_lag12$TPR
+best_result_lag12$FPR
+best_result_lag12$objective
+```
+
+## Confusion matrix for the Lag1-Lag2 model
+
+```{r}
+best_result_lag12$confusion_matrix
+```
+
+## Test error rate for the Lag1-Lag2 model
+
+```{r}
+best_result_lag12$error_rate
+```
+
+# Comparison of test error rates
+
+```{r}
+full_error <- best_result_full$error_rate
+lag12_error <- best_result_lag12$error_rate
+
+comparison <- data.frame(
+  Model = c("Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume", "Lag1 + Lag2"),
+  Test_Error_Rate = c(full_error, lag12_error)
+)
+
+comparison
+```
+
+## Conclusion
+
+```{r}
+if (lag12_error < full_error) {
+  cat("The model with only Lag1 and Lag2 gives a lower test error rate.")
+} else if (lag12_error > full_error) {
+  cat("The model with all six predictors gives a lower test error rate.")
+} else {
+  cat("Both models give the same test error rate.")
+}
+```
+
+ 
